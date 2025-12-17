@@ -6,8 +6,30 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Veritabanı bağlantı bilgisi
-DB_CONNECTION = "postgresql://postgres:mypassword@localhost:5432/nomad?sslmode=disable"
+# Veritabanı bağlantı bilgisi - Use environment variables
+def get_db_connection():
+    import os
+    db_host = os.getenv("DB_HOST")
+    db_user = os.getenv("DB_USER", "postgres")
+    db_password = os.getenv("DB_PASSWORD")
+    db_name = os.getenv("DB_NAME", "postgres")
+    
+    if db_host and db_password:
+        return psycopg2.connect(
+            host=db_host,
+            user=db_user,
+            password=db_password,
+            database=db_name,
+            port=5432,
+            sslmode="require"
+        )
+    # Fallback
+    db_url = os.getenv("DB_URL")
+    if db_url:
+        return psycopg2.connect(db_url)
+    raise Exception("Database connection failed: DB_HOST and DB_PASSWORD required")
+
+DB_CONNECTION = None  # Will be created dynamically
 
 # Configure genai if not already configured in main (it is safer to configure here too or rely on singleton if env set)
 API_KEY = os.getenv("GEMINI_API_KEY")
@@ -24,7 +46,7 @@ def search_memory(query_text, limit=3):
         return []
 
     try:
-        conn = psycopg2.connect(DB_CONNECTION)
+        conn = get_db_connection()
         cursor = conn.cursor()
 
         # 2. Vektör Araması (Cosine Distance)

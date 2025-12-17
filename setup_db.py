@@ -1,10 +1,17 @@
-import psycopg2
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+import os
+
+# DB Bağlantısı
+DB_URL = os.getenv("DB_URL", "postgresql://postgres:mypassword@localhost:5432/nomad?sslmode=disable")
+# Cloud'da 'postgres' database'ine baglanmak yerine direkt DB_URL kullanilir
+# Ancak lokalde 'nomad' veritabanini yaratmak icin once 'postgres' db'ye baglanmak gerekir
+# Bu script cloud deploy oncesi lokalde calistirildigi varsayimiyla yazilmistir
+# Cloud'da Supabase zaten hazir oldugu icin bu scriptin oraya baglanip extension acmasi yeterli
+DEFAULT_DB_URL = os.getenv("DB_URL", "postgresql://postgres:mypassword@localhost:5432/postgres?sslmode=disable")
 
 try:
-    # Connect to default postgres DB
-    print("Connecting to 'postgres' database...")
-    conn = psycopg2.connect("postgresql://postgres:mypassword@localhost:5432/postgres?sslmode=disable")
+    # Connect to default DB or provided DB (Cloud)
+    print(f"Connecting to database...")
+    conn = psycopg2.connect(DEFAULT_DB_URL)
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cur = conn.cursor()
     

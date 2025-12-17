@@ -1,0 +1,22 @@
+# Cloud Run Environment Variables Template
+# Copy this file to .env and fill in your values
+
+# Database Configuration (REQUIRED)
+DB_HOST=your-database-host.supabase.co
+DB_PASSWORD=your-database-password
+DB_USER=postgres
+DB_NAME=postgres
+
+# Gemini API (REQUIRED)
+GEMINI_API_KEY=your-gemini-api-key
+
+# Google Drive OAuth 2.0 (Optional - for 5TB personal Drive)
+# Get these from get_oauth_token.py script
+GOOGLE_REFRESH_TOKEN=your-refresh-token
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+
+# Google Drive Service Account (Optional - fallback)
+# Base64 encoded service account JSON
+GOOGLE_CREDENTIALS_JSON_B64=your-base64-encoded-credentials
+

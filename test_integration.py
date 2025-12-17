@@ -1,7 +1,7 @@
 import requests
 import psycopg2
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = "http://127.0.0.1:8001"
 DB_CONN = "postgresql://postgres:mypassword@localhost:5432/nomad?sslmode=disable"
 
 def test_integration():

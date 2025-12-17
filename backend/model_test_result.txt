@@ -1,0 +1,25 @@
+Testing models with API Key ending in ...sYFM
+
+Testing model: models/gemini-2.5-flash
+SUCCESS: models/gemini-2.5-flash works!
+
+Testing model: gemini-2.5-flash
+SUCCESS: gemini-2.5-flash works!
+
+Testing model: models/gemini-2.0-flash-exp
+SUCCESS: models/gemini-2.0-flash-exp works!
+
+Testing model: gemini-2.0-flash-exp
+SUCCESS: gemini-2.0-flash-exp works!
+
+Testing model: models/gemini-1.5-flash
+FAILED: models/gemini-1.5-flash - 404 models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+
+Testing model: gemini-1.5-flash
+FAILED: gemini-1.5-flash - 404 models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+
+Testing model: models/gemini-pro
+FAILED: models/gemini-pro - 404 models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+
+Testing model: gemini-pro
+FAILED: gemini-pro - 404 models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.

@@ -15,7 +15,8 @@ export default {
                     accent: '#f43f5e', // Neon Kırmızı (Alertler için)
                     text: '#94a3b8', // Sönük metin
                     textLight: '#e2e8f0', // Parlak metin
-                }
+                },
+                'neon-blue': '#00f3ff', // Login screen için
             },
             fontFamily: {
                 mono: ['"JetBrains Mono"', 'monospace'], // Terminal havası için
