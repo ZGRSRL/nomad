@@ -379,3 +379,8 @@ def verify_rss_url(url):
         return True, "Valid"
     except Exception as e:
         return False, str(e)
+
+
+def fetch_feeds(category='ALL'):
+    "Wrapper to run async fetch_feeds_async in synchronous context"
+    return asyncio.run(fetch_feeds_async(category))
