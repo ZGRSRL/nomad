@@ -21,7 +21,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS feeds (
                 id SERIAL PRIMARY KEY,
                 url TEXT UNIQUE NOT NULL,
-                categoryVB TEXT,
+                categoryvb TEXT,
                 source_name TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );

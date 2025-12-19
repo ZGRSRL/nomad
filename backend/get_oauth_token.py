@@ -42,21 +42,19 @@ def get_refresh_token():
             flow = InstalledAppFlow.from_client_secrets_file(
                 client_secrets_file, SCOPES)
             # Local server ile OAuth flow başlat
-            # Port 8081 kullan (8080 kullanımda olabilir)
-            # OAuth client'ta http://localhost:8081 redirect URI olarak eklenmeli
+            # Port 8081 (Ekrandaki listede var)
             print("OAuth flow baslatiliyor...")
             print("Port: 8081")
-            print("OAuth client'ta http://localhost:8081 redirect URI olarak eklenmeli!")
-            try:
-                creds = flow.run_local_server(port=8081, prompt='consent', open_browser=True)
-            except OSError as e:
-                if "address already in use" in str(e).lower() or "10013" in str(e):
-                    print("Port 8081 kullanimda, alternatif port deneniyor...")
-                    # Alternatif port dene
-                    creds = flow.run_local_server(port=0, prompt='consent', open_browser=True)
-                    print("KULLANILAN PORT'U NOT AL VE OAUTH CLIENT'A EKLE!")
-                else:
-                    raise
+            print("OAuth client'ta http://localhost:8081 redirect URI olarak tanımlı olmalı.")
+            
+            # STRICT MODE: Fallback yok. Random port yok.
+            # Kullanıcı isteği üzerine browser otomatik açılıyor
+            # Explicitly set redirect_uri to what we expect to match Console
+            expected_uri = "http://localhost:8081/"
+            print(f"\n⚠️ BEKLENEN REDIRECT URI: {expected_uri}")
+            print(f"Lütfen Google Cloud Console'da BU ADRESİN ekli olduğundan emin olun (sonundaki / dahil).")
+            
+            creds = flow.run_local_server(port=8081, prompt='consent', open_browser=True)
         
         # Token'ı kaydet
         with open(token_file, 'wb') as token:

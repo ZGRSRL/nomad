@@ -22,3 +22,11 @@ Thumbs.db
 # Nomad Specific
 backend/.env
 credentials.json
+
+# Secrets and Temp
+*.pickle
+*.log
+debug_*.txt
+temp_*.env
+*_result.txt
+backend/oauth_credentials.json

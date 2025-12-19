@@ -63,7 +63,7 @@ def get_db_feeds():
     try:
         conn = connect_db()
         cur = conn.cursor()
-        cur.execute("SELECT url, categoryVB, source_name FROM feeds")
+        cur.execute("SELECT url, categoryvb, source_name FROM feeds")
         rows = cur.fetchall()
         
         for url, cat, name in rows:
@@ -84,7 +84,7 @@ def add_feed_to_db(url, category, source_name="UNKNOWN"):
         conn = connect_db()
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO feeds (url, categoryVB, source_name) VALUES (%s, %s, %s) RETURNING id",
+            "INSERT INTO feeds (url, categoryvb, source_name) VALUES (%s, %s, %s) RETURNING id",
             (url, category.upper(), source_name.upper())
         )
         new_id = cur.fetchone()[0]

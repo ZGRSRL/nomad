@@ -23,7 +23,7 @@ def setup_database():
             CREATE TABLE IF NOT EXISTS feeds (
                 id SERIAL PRIMARY KEY,
                 url TEXT NOT NULL UNIQUE,
-                categoryVB TEXT NOT NULL,
+                categoryvb TEXT NOT NULL,
                 source_name TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -41,7 +41,7 @@ def setup_database():
         for url, cat, name in default_feeds:
             # Çakışma varsa (ON CONFLICT) hiçbir şey yapma
             cur.execute("""
-                INSERT INTO feeds (url, categoryVB, source_name) 
+                INSERT INTO feeds (url, categoryvb, source_name) 
                 VALUES (%s, %s, %s) 
                 ON CONFLICT (url) DO NOTHING;
             """, (url, cat, name))

@@ -16,6 +16,8 @@ print(f"DEBUG: Looking for credentials at: {CREDS_FILE}")
 
 SCOPES = ['https://www.googleapis.com/auth/drive']
 VAULT_FOLDER_NAME = "Nomad Intelligence"
+# Shared Folder explicitly granted by User
+SHARED_FOLDER_ID = "1LmySDiVGHRasi2R6zGwz3ijcsHiox0rG"
 
 def get_drive_service():
     """Authenticates and returns the Drive service."""
@@ -41,6 +43,8 @@ def get_drive_service():
             print(f"✅ Using OAuth 2.0 (User's personal Drive - 5TB)")
         except Exception as e:
             print(f"⚠️ Failed to use OAuth 2.0: {e}")
+            import traceback
+            traceback.print_exc()
             creds = None
     
     # 1. Try environment variable (Cloud Run) - Base64 encoded
@@ -104,6 +108,14 @@ def get_drive_service():
     
     try:
         service = build('drive', 'v3', credentials=creds)
+        
+        # Verify who we are
+        try:
+            about = service.about().get(fields="user").execute()
+            print(f"ℹ️ Authenticated Identity: {about['user']['emailAddress']}")
+        except:
+            print("ℹ️ Could not determine identity")
+            
         return service
     except Exception as e:
         print(f"❌ Auth Error: {e}")
@@ -116,6 +128,17 @@ def get_or_create_vault(service):
         query = f"mimeType='application/vnd.google-apps.folder' and name='{VAULT_FOLDER_NAME}' and trashed=false"
         results = service.files().list(q=query, fields="files(id, name)").execute()
         items = results.get('files', [])
+
+        # Try Shared Folder Logic First
+        global SHARED_FOLDER_ID
+        if SHARED_FOLDER_ID:
+             try:
+                 # Verify access to hardcoded ID
+                 f = service.files().get(fileId=SHARED_FOLDER_ID, fields="id, name").execute()
+                 print(f"✅ Using Shared Folder: {f.get('name')} ({f.get('id')})")
+                 return f.get('id')
+             except:
+                 print("⚠️ Shared folder not accessible, falling back to name search.")
 
         if not items:
             # Create if not found

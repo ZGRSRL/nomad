@@ -7,8 +7,8 @@ const NewsCard = ({ data, onClick }) => {
             onClick={() => onClick(data)}
             className="group relative bg-gray-900 border border-gray-800 hover:border-neon-blue rounded-lg overflow-hidden transition-all cursor-pointer h-full flex flex-col hover:shadow-[0_0_20px_rgba(6,182,212,0.2)]"
         >
-            {/* 1. VISUAL INTEL (Image Area) */}
-            <div className="h-40 w-full relative overflow-hidden bg-black">
+            {/* 1. VISUAL INTEL (Image Area) - Reduced Height */}
+            <div className="h-32 w-full relative overflow-hidden bg-black">
                 {data.image_url ? (
                     <img
                         src={data.image_url}
@@ -30,8 +30,8 @@ const NewsCard = ({ data, onClick }) => {
                 <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-10 pointer-events-none bg-[length:100%_4px,3px_100%] opacity-20"></div>
             </div>
 
-            {/* 2. DATA HEADER */}
-            <div className="p-4 flex-1 flex flex-col relative">
+            {/* 2. DATA HEADER - Compact Padding */}
+            <div className="p-3 flex-1 flex flex-col relative">
                 {/* Category Tint Line */}
                 <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-cyber-primary/50 to-transparent"></div>
 
@@ -51,7 +51,7 @@ const NewsCard = ({ data, onClick }) => {
                 </h3>
 
                 {/* Summary Snippet */}
-                <p className="text-xs text-gray-500 line-clamp-3 mb-4 flex-1">
+                <p className="text-xs text-gray-500 line-clamp-2 mb-3 flex-1">
                     {data.summary.replace(/<[^>]+>/g, '')}
                 </p>
 

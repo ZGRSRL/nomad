@@ -14,6 +14,12 @@ if env_path.exists():
 API_KEY = os.getenv("GEMINI_API_KEY")
 if not API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable is required")
+    
+# DEBUG KEY
+print(f"DEBUG: Loaded API KEY. Length: {len(API_KEY)}")
+print(f"DEBUG: Key Start: {API_KEY[:5]}... Key End: ...{API_KEY[-5:]}")
+print(f"DEBUG: repr(key): {repr(API_KEY)}")
+
 genai.configure(api_key=API_KEY)
 
 generation_config = {
@@ -33,32 +39,33 @@ model = None  # Will be created per-request
 def analyze_article(title, content_snippet):
     print(f"Analyzing: {title}")
     prompt = f"""
-    Analyze this article for a tech-savvy user interested in AI, Science, and Global Innovation.
+    ROL: Sen bilim ve teknoloji konusunda uzman, TÜRK kitleye içerik üreten bir analistsin.
+    GÖREV: Aşağıdaki İngilizce metni analiz et ve teknik bir TÜRKÇE rapor oluştur.
     
-    Article Title: {title}
-    Snippet: {content_snippet}
+    Makale Başlığı: {title}
+    İçerik Özeti: {content_snippet}
     
-    Determine the 'Impact Score' (0-100) based on:
-    1. Innovation: Is this a scientific/tech breakthrough?
-    2. Scale: Does it affect a large industry or population?
-    3. Longevity: Is this a fleeting hype or a long-term shift?
+    'Etki Puanı'nı (0-100) şuna göre belirle:
+    1. İnovasyon: Bilimsel/teknik bir devrim mi?
+    2. Ölçek: Büyük bir endüstriyi veya nüfusu etkiliyor mu?
+    3. Kalıcılık: Gelip geçici bir heves mi yoksa kalıcı bir değişim mi?
 
-    Provide the analysis in strict JSON format with these keys:
-    1. "summary": Concise technical summary (max 2 sentences).
-    2. "aiInsight": Why does this matter? (The hidden implication or opportunity).
-    3. "action": A strategic recommendation (e.g. "Investigate", "Monitor", "Ignore").
-    4. "tags": List of 3-5 uppercase keywords.
-    5. "impact_score": Integer 0-100. (80+ = Global Shift, 50-79 = Industry Update, <50 = Niche).
-    6. "trend_label": Short badge text (e.g. "GLOBAL SHIFT", "HYPE", "SIGNAL", "NOISE").
-    7. "one_line_hook": A catchy, single-sentence hook about the core value.
+    Analizi şu anahtarlara sahip katı bir JSON formatında sun. TÜM metin alanları KESİNLİKLE TÜRKÇE olmalıdır:
+    1. "summary": TÜRKÇE teknik özet (maksimum 2 cümle).
+    2. "aiInsight": Bu neden önemli? (Gizli anlam veya fırsat) - TÜRKÇE.
+    3. "action": Stratejik tavsiye - TÜRKÇE (Örn: "Araştır", "İzle", "Göz Ardı Et").
+    4. "tags": 3-5 adet BÜYÜK HARFLİ İNGİLİZCE anahtar kelime listesi (Filtreleme için İngilizce kalsın).
+    5. "impact_score": Tam sayı 0-100.
+    6. "trend_label": Kısa etiket İNGİLİZCE (Örn: "GLOBAL SHIFT", "HYPE", "SIGNAL", "NOISE").
+    7. "one_line_hook": Ana fikir hakkında çarpıcı tek cümlelik TÜRKÇE slogan.
     
-    IMPORTANT: Return ONLY the JSON.
+    ÖNEMLİ: Sadece JSON döndür. Markdown blokları kullanma.
     """
     
     try:
         # Use the exact same model that works in rag_service.py
         # rag_service.py successfully uses: models/gemini-2.5-flash
-        model_name = "models/gemini-2.5-flash"
+        model_name = "models/gemini-1.5-flash"
         
         # Use the exact same model that works in rag_service.py
         print(f"Using model: {model_name} (same as rag_service)")

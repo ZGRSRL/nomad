@@ -22,7 +22,7 @@ const SignalGrid = ({ articles, loading, onArticleClick }) => {
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 p-6 overflow-y-auto h-full scroll-smooth custom-scrollbar pb-20">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 overflow-y-auto h-full scroll-smooth custom-scrollbar pb-20">
             {articles.map((item) => (
                 <NewsCard
                     key={item.id || item.link}
