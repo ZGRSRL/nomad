@@ -10,11 +10,6 @@ import scraper_service
 import ai_analyst
 import trend_service
 import drive_service
-import time
-
-# --- CACHE ---
-FEED_CACHE = {} # { "category": { "timestamp": 123, "data": [] } }
-CACHE_DURATION = 900 # 15 minutes
 
 # .env dosyasını yükle
 from pathlib import Path
@@ -134,40 +129,15 @@ def debug_database():
 
 # RSS & AI Analysis Endpoints
 @app.get("/feeds")
-async def get_feeds(category: str = "ALL", limit: int = 50, offset: int = 0):
-    """RSS akışlarını getirir (Async + Cache + Pagination)"""
-    
-    current_time = time.time()
-    cached = FEED_CACHE.get(category)
-    
-    # 1. Check Cache
-    if cached and (current_time - cached["timestamp"] < CACHE_DURATION):
-        print(f"⚡ Serving from CACHE ({category})")
-        all_articles = cached["data"]
-    else:
-        # 2. Fetch (Async)
-        print(f"🔄 Fetching Fresh Data ({category})...")
-        try:
-            all_articles = await rss_service.fetch_feeds_async(category)
-            # Update Cache
-            FEED_CACHE[category] = {
-                "timestamp": current_time,
-                "data": all_articles
-            }
-        except Exception as e:
-            print(f"Fetch Error: {e}")
-            if cached: return cached["data"] # Return stale data on error
-            return []
-
-    # 3. Apply Pagination
-    # Frontend performance için slice ediyoruz
-    return all_articles[offset : offset + limit]
+def get_feeds(category: str = "ALL"):
+    """RSS akışlarını getirir"""
+    return rss_service.fetch_feeds(category)
 
 @app.get("/trends")
-async def get_global_trends():
+def get_global_trends():
     """Son haberlerden trend analizi yapar"""
-    # 1. Tüm haberleri çek (Async)
-    all_news = await rss_service.fetch_feeds_async("ALL")
+    # 1. Tüm haberleri çek
+    all_news = rss_service.fetch_feeds("ALL")
     # 2. Trend servisine gönder
     trends = trend_service.analyze_trends(all_news)
     return trends
@@ -175,41 +145,42 @@ async def get_global_trends():
 @app.post("/feeds/add")
 def add_new_feed(request: NewFeedRequest):
     """Yeni RSS kaynağı ekler (Gelişmiş - Duplicate Check)"""
-    # ... (Existing logic but ensuring imports align, keeping as is)
-    # Reusing existing logic but verifying calls to rss_service
-    # Since rss_service.verify_rss_url is synchronous, we can keep this sync or make it async.
-    # FastAPI handles sync endpoints in threadpool, so it's fine.
-    
-    # 1. Validation
-    is_valid, msg = rss_service.verify_rss_url(request.url)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=f"RSS Error: {msg}")
+    conn = None
+    try:
+        # 1. Önce Linki Doğrula
+        # Bu işlem uzun sürebilir, timeout yiyebilir, DB'den önce yapılması iyi.
+        is_valid, msg = rss_service.verify_rss_url(request.url)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=f"RSS Error: {msg}")
 
-    # 2. Add to DB
-    res = rss_service.add_feed_to_db(request.url, request.category, request.source_name)
-    if not res:
-        raise HTTPException(status_code=400, detail="Ekleme başarısız veya duplicate.")
-    
-    return {"status": "success", "message": f"Feed added: {request.source_name}", "id": res}
+        conn = get_db_connection()
+        cur = conn.cursor()
 
-@app.delete("/feeds/{feed_id}")
-def delete_feed(feed_id: int):
-    """Admin: Bir kaynağı siler"""
-    success = rss_service.delete_feed_from_db(feed_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Feed silinemedi veya bulunamadı.")
-    return {"status": "success", "id": feed_id}
+        # 2. Bu link zaten var mı?
+        cur.execute("SELECT id FROM feeds WHERE url = %s", (request.url,))
+        if cur.fetchone():
+            raise HTTPException(status_code=400, detail="Bu kaynak zaten ekli Kaptan!")
 
-class FeedStatusRequest(BaseModel):
-    is_active: bool
+        # 3. Yoksa ekle
+        cur.execute(
+            "INSERT INTO feeds (url, categoryvb, source_name) VALUES (%s, %s, %s) RETURNING id",
+            (request.url, request.category.upper(), request.source_name.upper())
+        )
+        new_id = cur.fetchone()[0]
+        conn.commit()
+        return {"status": "success", "message": f"Feed added: {request.source_name}", "id": new_id}
 
-@app.put("/feeds/{feed_id}/status")
-def toggle_feed_status(feed_id: int, status: FeedStatusRequest):
-    """Admin: Bir kaynağı aktif/pasif yapar"""
-    success = rss_service.toggle_feed_status(feed_id, status.is_active)
-    if not success:
-        raise HTTPException(status_code=404, detail="Feed güncellenemedi.")
-    return {"status": "success", "id": feed_id, "is_active": status.is_active}
+    except HTTPException:
+        if conn: conn.rollback()
+        raise # Kendi fırlattığımız hataları olduğu gibi geç
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"CRITICAL ERROR in add_new_feed: {e}")
+        # Hata detayını return et ki debug edebilelim
+        raise HTTPException(status_code=500, detail=f"System Crash: {str(e)}")
+    finally:
+        if conn:
+            conn.close()
 
 @app.get("/categories")
 def get_categories():
@@ -232,41 +203,6 @@ def get_categories():
 def analyze_news(request: AnalysisRequest):
     """Seçilen haberi AI'a gönderir"""
     result = ai_analyst.analyze_article(request.title, request.content)
-    
-    # --- ACTION ENGINE TRIGGER ---
-    if result.get("impact_score", 0) >= 80:
-        print(f"🚀 ACTION ENGINE: High Impact ({result['impact_score']}) detected. Generating Report...")
-        
-        # HTML Rapor Hazırla
-        report_html = f"""
-        <h1>⚡ INTELLIGENCE ALERT: {result.get('impact_score')} / 100</h1>
-        <h2>{request.title}</h2>
-        <hr>
-        <h3>🤖 AI Insight</h3>
-        <p>{result.get('aiInsight')}</p>
-        <h3>📝 Summary</h3>
-        <p>{result.get('summary')}</p>
-        <hr>
-        <h3>Strategic Action</h3>
-        <p><strong>{result.get('action')}</strong></p>
-        <br>
-        <small>Generated by Nomad Action Engine</small>
-        """
-        
-        # Drive'a Yükle
-        # Drive'a Yükle - DISABLED (User manually triggers Archive)
-        # upload_res = drive_service.upload_html_as_doc(f"ALERT: {request.title}", report_html)
-        
-        # if upload_res.get("status") == "success":
-        #     result["action_taken"] = "IMMEDIATE_REPORT_GENERATED"
-        #     result["report_link"] = upload_res.get("link")
-        # else:
-        #     print(f"❌ UPLOAD FAILED DETAILS: {upload_res}")
-        #     result["action_taken"] = "REPORT_FAILED"
-        
-        print("ℹ️ Auto-Upload skipped to prevent duplicates. User can Archive manually.")
-        result["action_taken"] = "AUTO_UPLOAD_DISABLED"
-            
     return result
 
 @app.post("/scan")
@@ -279,32 +215,6 @@ def deep_scan_url(request: ScanRequest):
         
     # AI Analizi
     analysis = ai_analyst.analyze_article(scraped_data['title'], scraped_data['content'])
-    
-    # --- ACTION ENGINE TRIGGER (Deep Scan) ---
-    if analysis.get("impact_score", 0) >= 80:
-        print(f"🚀 ACTION ENGINE: High Impact ({analysis['impact_score']}) detected in SCAN. Generating Report...")
-        
-        report_html = f"""
-        <h1>⚡ INTELLIGENCE ALERT: {analysis.get('impact_score')} / 100</h1>
-        <h2>{scraped_data['title']}</h2>
-        <p><a href="{request.url}">Original Source</a></p>
-        <hr>
-        <h3>🤖 AI Insight</h3>
-        <p>{analysis.get('aiInsight')}</p>
-        <h3>📝 Summary</h3>
-        <p>{analysis.get('summary')}</p>
-        <hr>
-        <h3>Full Content Analysis</h3>
-        <p>{scraped_data['content'][:2000]}...</p>
-        """
-        
-        # upload_res = drive_service.upload_html_as_doc(f"SCAN ALERT: {scraped_data['title']}", report_html)
-        
-        # if upload_res.get("status") == "success":
-        #    analysis["action_taken"] = "IMMEDIATE_REPORT_GENERATED"
-        #    analysis["report_link"] = upload_res.get("link")
-        print("ℹ️ Auto-Upload skipped to prevent duplicates. User can Archive manually.")
-        analysis["action_taken"] = "AUTO_UPLOAD_DISABLED"
     
     # Orijinal linki de analize ekle ki kaydederken kullanabilelim
     analysis['link'] = request.url
@@ -442,29 +352,32 @@ def summarize_text(request: SummarizeRequest):
     try:
         # Try different model names in order of preference
         model_names = [
-            "models/gemini-1.5-flash",
+            "gemini-2.0-flash-exp", # Latest/Fastest
             "gemini-1.5-flash",
-            "models/gemini-1.5-flash-latest",
             "gemini-1.5-flash-latest",
-            "models/gemini-pro",
             "gemini-pro"
         ]
         model = None
         
-        for model_name in model_names:
+        last_error = None
+        for name in model_names:
             try:
-                model = genai.GenerativeModel(model_name)
-                break
-            except:
+                model = genai.GenerativeModel(name)
+                # Test generation call? No, usually unnecessary overhead, but good for validation.
+                # Just break if initialization succeeded (which is lazy in this lib, so maybe redundant).
+                # But let's proceed to generate with the first successful model.
+                prompt = f"Aşağıdaki metni Türkçe olarak, maddeler halinde özetle:\n\n{request.text}"
+                response = model.generate_content(prompt)
+                return {"summary": response.text}
+            except Exception as e:
+                # print(f"Model {name} failed: {e}")
+                last_error = e
                 continue
         
-        if not model:
-            raise HTTPException(status_code=500, detail="No working Gemini model found")
-        
-        prompt = f"Aşağıdaki metni Türkçe olarak, maddeler halinde özetle:\n\n{request.text}"
-        response = model.generate_content(prompt)
-        
-        return {"summary": response.text}
+        if last_error:
+            raise last_error
+            
+        return {"summary": "No model available."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -600,31 +513,31 @@ def get_db_connection():
 
     # 2. Fallback to URL Parsing
     db_url = os.getenv("DB_URL")
-    if db_url:
-        try:
-            # Check if sslmode is explicitly disabled in the URL string
-            ssl_mode = "require"
-            if "sslmode=disable" in db_url:
-                ssl_mode = "disable"
+    if not db_url:
+        return psycopg2.connect("postgresql://postgres:mypassword@localhost:5432/nomad?sslmode=disable")
+        
+    try:
+        # Check if sslmode is explicitly disabled in the URL string
+        ssl_mode = "require"
+        if "sslmode=disable" in db_url:
+            ssl_mode = "disable"
 
-            result = urlparse(db_url)
-            if result.username and result.password:
-                return psycopg2.connect(
-                    database=result.path[1:] if result.path else "postgres",
-                    user=result.username,
-                    password=result.password,
-                    host=result.hostname,
-                    port=result.port,
-                    sslmode=ssl_mode
-                )
-            else:
-                return psycopg2.connect(db_url)
-        except Exception as e:
-            print(f"Connection String Parsing Error: {e}")
+        result = urlparse(db_url)
+        if result.username and result.password:
+            return psycopg2.connect(
+                database=result.path[1:] if result.path else "postgres",
+                user=result.username,
+                password=result.password,
+                host=result.hostname,
+                port=result.port,
+                sslmode=ssl_mode
+            )
+        else:
             return psycopg2.connect(db_url)
-    
-    # 3. Last resort: Raise error instead of connecting to localhost
-    raise Exception("Database connection failed: DB_HOST and DB_PASSWORD environment variables are required. Cannot connect to localhost in Cloud Run.")
+    except Exception as e:
+        print(f"Connection String Parsing Error: {e}")
+        # Ensure fallback connects even if parsing fails
+        return psycopg2.connect(db_url)
 
 if __name__ == "__main__":
     import uvicorn
