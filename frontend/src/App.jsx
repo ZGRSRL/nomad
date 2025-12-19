@@ -850,9 +850,10 @@ const FeedManagerModal = ({ onClose, API_URL, categories, onUpdate }) => {
     try {
       const res = await fetch(`${API_URL}/sources`);
       const data = await res.json();
-      setExistingFeeds(data);
+      setExistingFeeds(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("Feed Fetch Err", e);
+      setExistingFeeds([]);
     } finally {
       setLoading(false);
     }

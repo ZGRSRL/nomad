@@ -99,6 +99,8 @@ def get_db_feeds(active_only=True):
         print(f"DB Read Error: {e}")
         if conn: conn.close()
         return []
+    
+    return feeds
 
 def delete_feed_from_db(feed_id):
     """Deletes a feed by ID"""
