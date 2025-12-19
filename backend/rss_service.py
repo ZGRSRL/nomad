@@ -98,8 +98,23 @@ def get_db_feeds(active_only=True):
     except Exception as e:
         print(f"DB Read Error: {e}")
         if conn: conn.close()
-        
-    return feeds
+        return []
+
+def delete_feed_from_db(feed_id):
+    """Deletes a feed by ID"""
+    conn = connect_db()
+    if not conn: return False
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM feeds WHERE id = %s", (feed_id,))
+        conn.commit()
+        affected = cur.rowcount
+        cur.close()
+        conn.close()
+        return affected > 0
+    except Exception as e:
+        print(f"DB Delete Error: {e}")
+        return False
 
 def add_feed_to_db(url, category, source_name="UNKNOWN"):
     """Adds a new RSS feed."""

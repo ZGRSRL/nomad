@@ -133,8 +133,13 @@ def get_feeds(category: str = "ALL"):
     """RSS akışlarını getirir"""
     return rss_service.fetch_feeds(category)
 
+@app.get("/sources")
+def get_feed_sources():
+    """Admin: Kayıtlı tüm RSS kaynaklarını listeler"""
+    return rss_service.get_db_feeds(active_only=False)
+
 @app.get("/trends")
-def get_global_trends():
+async def get_global_trends():
     """Son haberlerden trend analizi yapar"""
     # 1. Tüm haberleri çek
     all_news = rss_service.fetch_feeds("ALL")
@@ -198,6 +203,14 @@ def get_categories():
     finally:
         cur.close()
         conn.close()
+
+@app.delete("/feeds/{feed_id}")
+def delete_feed(feed_id: int):
+    """Feed'i kalici olarak siler"""
+    if rss_service.delete_feed_from_db(feed_id):
+        return {"status": "success", "message": f"Feed {feed_id} deleted."}
+    else:
+        raise HTTPException(status_code=404, detail="Feed bulunamadı veya silinemedi.")
 
 @app.post("/analyze")
 def analyze_news(request: AnalysisRequest):

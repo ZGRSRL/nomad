@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Rss, Globe, Zap, Database, Shield, Sparkles, Cpu, ChevronRight, Loader, Plus, Save, Send, Share2, Search, Filter, HardDrive, BarChart3, LayoutDashboard, TrendingUp, Activity } from 'lucide-react';
-// Lazy load Graph for performance & safety
-const NeuralGraph = React.lazy(() => import('./components/NeuralGraph'));
+import ForceGraph2D from 'react-force-graph-2d';
 import * as d3 from 'd3';
 import SidebarTree from './components/SidebarTree';
 import SignalGrid from './components/SignalGrid';
@@ -10,27 +9,7 @@ import OperationDeck from './components/OperationDeck';
 import LoginScreen from './components/LoginScreen';
 
 // --- RENK PALETİ (Siberpunk Teması) ---
-const TAG_COLORS = {
-  DEFAULT: '#06b6d4',
-  TECH: '#06b6d4',
-  SCIENCE: '#8b5cf6',
-  SPACE: '#6366f1',
-  AI: '#ec4899',
-  MEDICAL: '#10b981',
-  HISTORY: '#f59e0b',
-  GENERAL: '#64748b',
-  POLITICS: '#ef4444',
-  BUSINESS: '#3b82f6',
-  ENVIRONMENT: '#22c55e',
-};
-
-const PRESET_FEEDS = [
-  { url: 'https://www.wired.com/feed/rss', category: 'TECH', name: 'Wired' },
-  { url: 'https://rss.cnn.com/rss/edition.rss', category: 'NEWS', name: 'CNN' },
-  { url: 'https://feeds.bbci.co.uk/news/rss.xml', category: 'NEWS', name: 'BBC News' },
-  { url: 'https://www.nasa.gov/rss/dyn/breaking_news.rss', category: 'SPACE', name: 'NASA Breaking News' },
-  { url: 'https://www.scientificamerican.com/rss/', category: 'SCIENCE', name: 'Scientific American' },
-];
+// ... (Keep existing colors)
 
 const App = () => {
 
@@ -98,20 +77,20 @@ const App = () => {
     ? 'http://localhost:8001'
     : 'https://nomad-backend-xxs2tligqa-ew.a.run.app';
 
-  // Graph Refs & D3 Tuning - DISABLED
-  // const graphRef = useRef();
+  // Graph Refs & D3 Tuning
+  const graphRef = useRef();
   const containerRef = useRef();
-  // const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
-  // useEffect(() => {
-  //   // Canvas boyutunu container'a uydur
-  //   if (containerRef.current) {
-  //     setDimensions({
-  //       width: containerRef.current.clientWidth,
-  //       height: containerRef.current.clientHeight
-  //     });
-  //   }
-  // }, [view, selectedNode]); // selectedNode panel açınca boyutu etkiler
+  useEffect(() => {
+    // Canvas boyutunu container'a uydur
+    if (containerRef.current) {
+      setDimensions({
+        width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight
+      });
+    }
+  }, [view, selectedNode]); // selectedNode panel açınca boyutu etkiler
 
   // --- AUTH CHECK moved to end to prevent Hook Errors ---
 
@@ -190,7 +169,6 @@ const App = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: textToSave })
       });
-      alert("Memory Block Encrypted & Saved.");
       alert("Memory Block Encrypted & Saved.");
       if (view === 'graph') fetchGraphData();
     } catch (e) { alert("Save failed."); }
@@ -343,71 +321,59 @@ const App = () => {
       alert("Intelligence Encrypted & Stored.");
       setScanUrl('');
       setScanResult(null);
-      alert("Intelligence Encrypted & Stored.");
-      setScanUrl('');
-      setScanResult(null);
       setView('graph');
     } catch (e) { alert("Save failed."); }
   };
 
-  // --- GRAPH MANTIKLARI (Filtreleme & Renk) --- DISABLED
+  // --- GRAPH MANTIKLARI (Filtreleme & Renk) ---
+
   // 1. Düğüm Rengi Belirle
-  // const getNodeColor = (node) => {
-  //   if (!node.tags || node.tags.length === 0) return TAG_COLORS.DEFAULT;
-  //   const firstTag = node.tags[0].toUpperCase();
-  //   return TAG_COLORS[firstTag] || TAG_COLORS.DEFAULT;
-  // };
+  const getNodeColor = (node) => {
+    if (!node.tags || node.tags.length === 0) return TAG_COLORS.DEFAULT;
+    // İlk tag'e göre renk ver, yoksa varsayılan
+    const firstTag = node.tags[0].toUpperCase();
+    return TAG_COLORS[firstTag] || TAG_COLORS.DEFAULT;
+  };
 
   // 2. Grafikteki tüm benzersiz tag'leri bul (Filtre menüsü için)
   const uniqueTags = useMemo(() => {
     const tags = new Set(['ALL']);
-    if (graphData && graphData.nodes) {
-      graphData.nodes.forEach(node => {
-        if (node.tags) node.tags.forEach(t => tags.add(t));
-      });
-    }
+    graphData.nodes.forEach(node => {
+      if (node.tags) node.tags.forEach(t => tags.add(t));
+    });
     return Array.from(tags);
   }, [graphData]);
 
-  // 3. Veriyi Filtrele
+  // 3. Veriyi Filtrele (Hem Tag hem Arama Sorgusu)
   const filteredGraphData = useMemo(() => {
-    if (!graphData || !graphData.nodes) {
-      return { nodes: [], links: [] };
-    }
-    
     let { nodes, links } = graphData;
-    
+
     // A. Tag Filtresi
     if (filterTag !== 'ALL') {
       nodes = nodes.filter(node => node.tags && node.tags.includes(filterTag));
     }
-    
+
     // B. Arama Sorgusu (Başlık içinde ara)
     if (searchQuery.trim() !== '') {
       const lowerQuery = searchQuery.toLowerCase();
-      nodes = nodes.filter(node => {
-        const label = node.label || node.name || '';
-        return label.toLowerCase().includes(lowerQuery);
-      });
+      nodes = nodes.filter(node => node.label.toLowerCase().includes(lowerQuery));
     }
-    
-    // C. Yetim Linkleri Temizle
+
+    // C. Yetim Linkleri Temizle (Filtrelenmiş node'lara bağlı olmayan linkleri at)
     const activeNodeIds = new Set(nodes.map(n => n.id));
-    links = links.filter(l => {
-      const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
-      const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-      return activeNodeIds.has(sourceId) && activeNodeIds.has(targetId);
-    });
-    
+    links = links.filter(l =>
+      (activeNodeIds.has(l.source.id) || activeNodeIds.has(l.source)) &&
+      (activeNodeIds.has(l.target.id) || activeNodeIds.has(l.target))
+    );
+
     return { nodes, links };
   }, [graphData, filterTag, searchQuery]);
 
-  // Helper to extract insight for hover - DISABLED
-  // const getHoverLabel = (node) => {
-  //   if (!node || !node.full_content) return node?.label || 'Unknown';
-  //   const insight = node.full_content.split('| Insight: ')[1]?.split('|')[0] || '';
-  //   return `${node.label || 'Unknown'}\n\n${insight.substring(0, 100)}${insight.length > 100 ? '...' : ''}`;
-  // };
+  // Helper to extract insight for hover
+  const getHoverLabel = (node) => {
+    const insight = node.full_content.split('| Insight: ')[1]?.split('|')[0] || '';
+    return `${node.label}\n\n${insight.substring(0, 100)}${insight.length > 100 ? '...' : ''}`;
+  };
 
 
 
@@ -739,17 +705,37 @@ const App = () => {
               </div>
             </div>
 
-            {/* GRAPH CANVAS - DISABLED */}
-            {/* GRAPH CANVAS - VIS NETWORK */}
-            <div className="w-full h-full relative">
-              <React.Suspense fallback={<div className="flex items-center justify-center h-full text-cyber-primary font-mono animate-pulse">BOOTING NEURAL GRAPH (VIS)...</div>}>
-                <NeuralGraph
-                  data={filteredGraphData} // Send filtered data
-                  onNodeClick={setSelectedNode}
-                  width="100%"
-                  height="100%"
-                />
-              </React.Suspense>
+            {/* GRAPH CANVAS */}
+            <div className="w-full h-full">
+              <ForceGraph2D
+                ref={graphRef}
+                width={dimensions.width}
+                height={dimensions.height}
+                graphData={filteredGraphData}
+                nodeLabel={getHoverLabel} // Rich Tooltip (Native)
+                nodeColor={getNodeColor}
+                linkColor={() => "#1e293b"}
+                backgroundColor="#020617"
+                nodeRelSize={8}
+                linkWidth={1.5}
+                linkDirectionalParticles={2}
+                linkDirectionalParticleSpeed={0.005}
+                onNodeClick={node => {
+                  console.log("Clicked:", node);
+                  setSelectedNode(node);
+                  if (graphRef.current) {
+                    graphRef.current.centerAt(node.x, node.y, 1000);
+                    graphRef.current.zoom(3, 2000);
+                  }
+                }}
+                onNodeHover={setHoverNode}
+                d3AlphaDecay={0.02}
+                d3VelocityDecay={0.3}
+                cooldownTicks={100}
+                onEngineStop={() => {
+                  // Initial Zoom Loop fix
+                }}
+              />
             </div>
           </div>
 
@@ -792,7 +778,7 @@ const App = () => {
                       <Zap size={14} /> RE-ANALYZE
                     </button>
 
-                    {selectedNode.full_content && selectedNode.full_content.includes('| Link:') && (
+                    {selectedNode.full_content.includes('| Link:') && (
                       <a
                         href={selectedNode.full_content.split('| Link: ')[1]?.trim()}
                         target="_blank"
@@ -813,23 +799,124 @@ const App = () => {
       {/* MODAL: ADD RSS */}
       {/* --- GELİŞMİŞ FEED YÖNETİCİSİ --- */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-[#0f172a] border border-cyan-500/30 rounded-2xl w-full max-w-2xl shadow-[0_0_50px_rgba(6,182,212,0.15)] overflow-hidden flex flex-col max-h-[90vh]">
+        <FeedManagerModal
+          onClose={() => setShowModal(false)}
+          API_URL={API_URL}
+          categories={categories}
+          onUpdate={() => {
+            fetchCategories();
+            fetchNews();
+          }}
+        />
+      )}
 
-            {/* Header */}
-            <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
-              <h2 className="text-xl font-bold text-white flex items-center gap-3">
-                <Rss className="text-cyan-400" />
-                <span className="tracking-widest">SIGNAL SOURCE MANAGER</span>
-              </h2>
-              <button onClick={() => setShowModal(false)} className="text-white/50 hover:text-white transition-colors">✕</button>
-            </div>
+    </div>
+  );
+};
 
-            <div className="flex flex-1 overflow-hidden">
+// --- SUB-COMPONENTS (Refactored for Cleanliness) ---
 
-              {/* Sol Taraf: Hazır Listeler (Presets) */}
+const FeedManagerModal = ({ onClose, API_URL, categories, onUpdate }) => {
+  const [activeTab, setActiveTab] = useState('add'); // 'add' | 'list'
+  const [newFeed, setNewFeed] = useState({ url: '', category: '', name: '' });
+  const [existingFeeds, setExistingFeeds] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'list') {
+      fetchFeeds();
+    }
+  }, [activeTab]);
+
+  const fetchFeeds = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/sources`);
+      const data = await res.json();
+      setExistingFeeds(data);
+    } catch (e) {
+      console.error("Feed Fetch Err", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddFeed = async () => {
+    if (!newFeed.url || !newFeed.category) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/feeds/add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: newFeed.url,
+          category: newFeed.category,
+          source_name: newFeed.name || "CUSTOM"
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail);
+
+      alert(`Uplink Established: ${data.message}`);
+      setNewFeed({ url: '', category: '', name: '' });
+      onUpdate();
+    } catch (e) {
+      alert(`FEED ERROR: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteFeed = async (id) => {
+    if (!confirm("Are you sure you want to sever this neural link?")) return;
+    try {
+      const res = await fetch(`${API_URL}/feeds/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setExistingFeeds(prev => prev.filter(f => f.id !== id));
+        onUpdate();
+      }
+    } catch (e) {
+      alert("Delete failed.");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="bg-[#0f172a] border border-cyan-500/30 rounded-2xl w-full max-w-2xl shadow-[0_0_50px_rgba(6,182,212,0.15)] overflow-hidden flex flex-col h-[600px]">
+
+        {/* Header */}
+        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+          <h2 className="text-xl font-bold text-white flex items-center gap-3">
+            <Rss className="text-cyan-400" />
+            <span className="tracking-widest">SIGNAL SOURCE MANAGER</span>
+          </h2>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">✕</button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-white/10">
+          <button
+            onClick={() => setActiveTab('add')}
+            className={`flex-1 py-3 text-xs font-mono font-bold tracking-wider transition-colors ${activeTab === 'add' ? 'bg-cyan-500/10 text-cyan-400 border-b-2 border-cyan-400' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+          >
+            NEW UPLINK
+          </button>
+          <button
+            onClick={() => setActiveTab('list')}
+            className={`flex-1 py-3 text-xs font-mono font-bold tracking-wider transition-colors ${activeTab === 'list' ? 'bg-cyan-500/10 text-cyan-400 border-b-2 border-cyan-400' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+          >
+            ACTIVE SIGNALS ({existingFeeds.length})
+          </button>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-hidden relative">
+          {/* VIEW: ADD NEW */}
+          {activeTab === 'add' && (
+            <div className="flex h-full">
+              {/* Presets Sidebar */}
               <div className="w-1/3 border-r border-white/10 overflow-y-auto bg-black/20 p-4">
-                <h3 className="text-xs font-mono text-cyan-500 mb-4 uppercase">Quick Add / Presets</h3>
+                <h3 className="text-xs font-mono text-cyan-500 mb-4 uppercase">Presets</h3>
                 <div className="space-y-2">
                   {PRESET_FEEDS.map((feed, idx) => (
                     <button
@@ -844,86 +931,94 @@ const App = () => {
                 </div>
               </div>
 
-              {/* Sağ Taraf: Form */}
+              {/* Form */}
               <div className="flex-1 p-8 overflow-y-auto">
                 <div className="space-y-6">
-
-                  {/* URL Input */}
                   <div>
-                    <label className="text-xs font-mono text-cyan-500/70 block mb-2 uppercase">Target RSS URL</label>
+                    <label className="text-xs font-mono text-cyan-500/70 block mb-2 uppercase">RSS URL</label>
                     <div className="relative">
                       <Globe className="absolute left-3 top-3 text-white/30" size={16} />
                       <input
                         value={newFeed.url}
                         onChange={e => setNewFeed({ ...newFeed, url: e.target.value })}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg p-3 pl-10 text-white text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 transition-all"
+                        className="w-full bg-white/5 border border-white/10 rounded-lg p-3 pl-10 text-white text-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                         placeholder="https://example.com/feed.xml"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    {/* Name Input */}
                     <div>
-                      <label className="text-xs font-mono text-cyan-500/70 block mb-2 uppercase">Source Name</label>
-                      <input
-                        value={newFeed.name}
-                        onChange={e => setNewFeed({ ...newFeed, name: e.target.value })}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-cyan-500 outline-none"
-                        placeholder="e.g. Wired"
-                      />
+                      <label className="text-xs font-mono text-cyan-500/70 block mb-2 uppercase">Name</label>
+                      <input value={newFeed.name} onChange={e => setNewFeed({ ...newFeed, name: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-cyan-500 outline-none" />
                     </div>
-
-                    {/* Category Input (Dinamik) */}
                     <div>
                       <label className="text-xs font-mono text-cyan-500/70 block mb-2 uppercase">Category</label>
-                      <div className="relative group">
-                        <input
-                          value={newFeed.category}
-                          onChange={e => setNewFeed({ ...newFeed, category: e.target.value.toUpperCase() })}
-                          className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-cyan-500 outline-none uppercase"
-                          placeholder="NEW OR SELECT..."
-                          list="category-suggestions"
-                        />
-                        {/* HTML5 Datalist ile Öneri Sistemi */}
-                        <datalist id="category-suggestions">
-                          {categories.map(c => c !== 'ALL' && <option key={c} value={c} />)}
-                          <option value="SPACE" />
-                          <option value="MEDICAL" />
-                          <option value="HISTORY" />
-                        </datalist>
-                      </div>
+                      <input value={newFeed.category} onChange={e => setNewFeed({ ...newFeed, category: e.target.value.toUpperCase() })} className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-cyan-500 outline-none uppercase" list="cat-suggestions" />
+                      <datalist id="cat-suggestions">
+                        {categories.map(c => c !== 'ALL' && <option key={c} value={c} />)}
+                      </datalist>
                     </div>
                   </div>
 
-                  {/* Info Box */}
-                  <div className="bg-cyan-900/20 border border-cyan-500/20 p-4 rounded-lg flex gap-3 items-start">
-                    <Zap className="text-cyan-400 shrink-0" size={18} />
-                    <p className="text-xs text-cyan-200/70 leading-relaxed">
-                      Adding a new source initiates an immediate <strong>Deep Scan</strong>. The Neural Network will categorize past articles automatically.
-                    </p>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
-                    <button onClick={() => setNewFeed({ url: '', category: '', name: '' })} className="px-4 py-2.5 text-xs font-mono text-cyan-500/50 hover:text-cyan-400 transition-colors">RESET</button>
-                    <button onClick={() => setShowModal(false)} className="px-6 py-2.5 text-xs font-mono text-white/60 hover:text-white transition-colors">ABORT</button>
+                  <div className="flex justify-end pt-4">
                     <button
                       onClick={handleAddFeed}
-                      disabled={!newFeed.url || !newFeed.name}
-                      className="px-8 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded-lg text-xs tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      disabled={!newFeed.url || !newFeed.name || loading}
+                      className="px-8 py-3 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded-lg text-xs tracking-wider transition-all disabled:opacity-50 flex items-center gap-2"
                     >
-                      ESTABLISH LINK <ChevronRight size={14} />
+                      {loading ? <Loader className="animate-spin" size={14} /> : <><ChevronRight size={14} /> ESTABLISH LINK</>}
                     </button>
                   </div>
-
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
+          {/* VIEW: LIST (Manage) */}
+          {activeTab === 'list' && (
+            <div className="p-0 h-full overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                {loading && existingFeeds.length === 0 ? (
+                  <div className="flex justify-center items-center h-40 text-cyan-500"><Loader className="animate-spin" /></div>
+                ) : (
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead className="text-xs font-mono text-white/40 uppercase bg-white/5 sticky top-0">
+                      <tr>
+                        <th className="p-3">Source Name</th>
+                        <th className="p-3">Category</th>
+                        <th className="p-3">URL</th>
+                        <th className="p-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {existingFeeds.map(feed => (
+                        <tr key={feed.id} className="hover:bg-white/5 transition-colors group">
+                          <td className="p-3 font-medium text-white">{feed.source_name}</td>
+                          <td className="p-3 text-cyan-400">{feed.category}</td>
+                          <td className="p-3 text-white/40 truncate max-w-[200px]">{feed.url}</td>
+                          <td className="p-3 text-right">
+                            <button
+                              onClick={() => handleDeleteFeed(feed.id)}
+                              className="px-3 py-1 bg-red-500/10 text-red-400 border border-red-500/30 rounded hover:bg-red-500 hover:text-black transition-all text-xs opacity-60 group-hover:opacity-100"
+                            >
+                              DISCONNECT
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {existingFeeds.length === 0 && !loading && (
+                        <tr><td colSpan="4" className="p-8 text-center text-white/30 font-mono">NO ACTIVE UPLINKS FOUND</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+      </div>
     </div>
   );
 };
@@ -933,25 +1028,6 @@ const NavIcon = ({ icon, active, onClick }) => (
     {icon}
   </button>
 );
-
-const StatCard = ({ icon, label, value, sub, color = 'blue' }) => {
-  const colorClasses = {
-    blue: 'border-blue-500/30 bg-blue-500/5',
-    purple: 'border-purple-500/30 bg-purple-500/5',
-    amber: 'border-amber-500/30 bg-amber-500/5',
-    green: 'border-green-500/30 bg-green-500/5',
-  };
-  return (
-    <div className={`p-6 rounded-xl border ${colorClasses[color] || colorClasses.blue} backdrop-blur-sm`}>
-      <div className="flex items-center justify-between mb-4">
-        {icon}
-      </div>
-      <div className="text-xs font-mono text-cyber-text/60 uppercase mb-1">{label}</div>
-      <div className="text-2xl font-bold text-white mb-1">{value}</div>
-      <div className="text-[10px] text-cyber-text/40 font-mono">{sub}</div>
-    </div>
-  );
-};
 
 // --- ERROR BOUNDARY ---
 class ErrorBoundary extends React.Component {
