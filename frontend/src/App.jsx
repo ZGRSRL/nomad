@@ -11,6 +11,15 @@ import LoginScreen from './components/LoginScreen';
 // --- RENK PALETİ (Siberpunk Teması) ---
 // ... (Keep existing colors)
 
+// --- CONSTANTS ---
+const PRESET_FEEDS = [
+  { name: 'Wired', category: 'TECH', url: 'https://www.wired.com/feed/rss' },
+  { name: 'CNN', category: 'NEWS', url: 'http://rss.cnn.com/rss/cnn_topstories.rss' },
+  { name: 'BBC News', category: 'NEWS', url: 'http://feeds.bbci.co.uk/news/rss.xml' },
+  { name: 'NASA Breaking News', category: 'SPACE', url: 'https://www.nasa.gov/rss/dyn/breaking_news.rss' },
+  { name: 'Scientific American', category: 'SCIENCE', url: 'http://rss.sciam.com/ScientificAmerican-Global' }
+];
+
 const App = () => {
 
   // --- ERROR BOUNDARY ---
@@ -83,14 +92,22 @@ const App = () => {
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
   useEffect(() => {
-    // Canvas boyutunu container'a uydur
-    if (containerRef.current) {
-      setDimensions({
-        width: containerRef.current.clientWidth,
-        height: containerRef.current.clientHeight
-      });
-    }
-  }, [view, selectedNode]); // selectedNode panel açınca boyutu etkiler
+    // Canvas boyutunu container'a uydur (ResizeObserver ile daha sağlam)
+    if (!containerRef.current) return;
+
+    const resizeObserver = new ResizeObserver(entries => {
+      for (let entry of entries) {
+        setDimensions({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height
+        });
+      }
+    });
+
+    resizeObserver.observe(containerRef.current);
+
+    return () => resizeObserver.disconnect();
+  }, [view]); // Sadece view değişince observer'ı yeniden başlatmak yeterli
 
   // --- AUTH CHECK moved to end to prevent Hook Errors ---
 
