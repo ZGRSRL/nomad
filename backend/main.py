@@ -10,6 +10,11 @@ import scraper_service
 import ai_analyst
 import trend_service
 import drive_service
+import time
+
+# --- CACHE ---
+FEED_CACHE = {} # { "category": { "timestamp": 123, "data": [] } }
+CACHE_DURATION = 900 # 15 minutes
 
 # .env dosyasını yükle
 from pathlib import Path
@@ -129,15 +134,40 @@ def debug_database():
 
 # RSS & AI Analysis Endpoints
 @app.get("/feeds")
-def get_feeds(category: str = "ALL"):
-    """RSS akışlarını getirir"""
-    return rss_service.fetch_feeds(category)
+async def get_feeds(category: str = "ALL", limit: int = 50, offset: int = 0):
+    """RSS akışlarını getirir (Async + Cache + Pagination)"""
+    
+    current_time = time.time()
+    cached = FEED_CACHE.get(category)
+    
+    # 1. Check Cache
+    if cached and (current_time - cached["timestamp"] < CACHE_DURATION):
+        print(f"⚡ Serving from CACHE ({category})")
+        all_articles = cached["data"]
+    else:
+        # 2. Fetch (Async)
+        print(f"🔄 Fetching Fresh Data ({category})...")
+        try:
+            all_articles = await rss_service.fetch_feeds_async(category)
+            # Update Cache
+            FEED_CACHE[category] = {
+                "timestamp": current_time,
+                "data": all_articles
+            }
+        except Exception as e:
+            print(f"Fetch Error: {e}")
+            if cached: return cached["data"] # Return stale data on error
+            return []
+
+    # 3. Apply Pagination
+    # Frontend performance için slice ediyoruz
+    return all_articles[offset : offset + limit]
 
 @app.get("/trends")
-def get_global_trends():
+async def get_global_trends():
     """Son haberlerden trend analizi yapar"""
-    # 1. Tüm haberleri çek
-    all_news = rss_service.fetch_feeds("ALL")
+    # 1. Tüm haberleri çek (Async)
+    all_news = await rss_service.fetch_feeds_async("ALL")
     # 2. Trend servisine gönder
     trends = trend_service.analyze_trends(all_news)
     return trends
@@ -145,42 +175,41 @@ def get_global_trends():
 @app.post("/feeds/add")
 def add_new_feed(request: NewFeedRequest):
     """Yeni RSS kaynağı ekler (Gelişmiş - Duplicate Check)"""
-    conn = None
-    try:
-        # 1. Önce Linki Doğrula
-        # Bu işlem uzun sürebilir, timeout yiyebilir, DB'den önce yapılması iyi.
-        is_valid, msg = rss_service.verify_rss_url(request.url)
-        if not is_valid:
-            raise HTTPException(status_code=400, detail=f"RSS Error: {msg}")
+    # ... (Existing logic but ensuring imports align, keeping as is)
+    # Reusing existing logic but verifying calls to rss_service
+    # Since rss_service.verify_rss_url is synchronous, we can keep this sync or make it async.
+    # FastAPI handles sync endpoints in threadpool, so it's fine.
+    
+    # 1. Validation
+    is_valid, msg = rss_service.verify_rss_url(request.url)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=f"RSS Error: {msg}")
 
-        conn = get_db_connection()
-        cur = conn.cursor()
+    # 2. Add to DB
+    res = rss_service.add_feed_to_db(request.url, request.category, request.source_name)
+    if not res:
+        raise HTTPException(status_code=400, detail="Ekleme başarısız veya duplicate.")
+    
+    return {"status": "success", "message": f"Feed added: {request.source_name}", "id": res}
 
-        # 2. Bu link zaten var mı?
-        cur.execute("SELECT id FROM feeds WHERE url = %s", (request.url,))
-        if cur.fetchone():
-            raise HTTPException(status_code=400, detail="Bu kaynak zaten ekli Kaptan!")
+@app.delete("/feeds/{feed_id}")
+def delete_feed(feed_id: int):
+    """Admin: Bir kaynağı siler"""
+    success = rss_service.delete_feed_from_db(feed_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Feed silinemedi veya bulunamadı.")
+    return {"status": "success", "id": feed_id}
 
-        # 3. Yoksa ekle
-        cur.execute(
-            "INSERT INTO feeds (url, categoryvb, source_name) VALUES (%s, %s, %s) RETURNING id",
-            (request.url, request.category.upper(), request.source_name.upper())
-        )
-        new_id = cur.fetchone()[0]
-        conn.commit()
-        return {"status": "success", "message": f"Feed added: {request.source_name}", "id": new_id}
+class FeedStatusRequest(BaseModel):
+    is_active: bool
 
-    except HTTPException:
-        if conn: conn.rollback()
-        raise # Kendi fırlattığımız hataları olduğu gibi geç
-    except Exception as e:
-        if conn: conn.rollback()
-        print(f"CRITICAL ERROR in add_new_feed: {e}")
-        # Hata detayını return et ki debug edebilelim
-        raise HTTPException(status_code=500, detail=f"System Crash: {str(e)}")
-    finally:
-        if conn:
-            conn.close()
+@app.put("/feeds/{feed_id}/status")
+def toggle_feed_status(feed_id: int, status: FeedStatusRequest):
+    """Admin: Bir kaynağı aktif/pasif yapar"""
+    success = rss_service.toggle_feed_status(feed_id, status.is_active)
+    if not success:
+        raise HTTPException(status_code=404, detail="Feed güncellenemedi.")
+    return {"status": "success", "id": feed_id, "is_active": status.is_active}
 
 @app.get("/categories")
 def get_categories():
