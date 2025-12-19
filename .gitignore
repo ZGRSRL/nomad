@@ -37,3 +37,7 @@ merge_envs.py
 *.cer
 *.p12
 secret_*.py
+
+# Global Env Block
+**/*.env
+**/.env.*
