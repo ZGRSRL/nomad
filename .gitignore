@@ -30,3 +30,10 @@ debug_*.txt
 temp_*.env
 *_result.txt
 backend/oauth_credentials.json
+
+merge_envs.py
+*.keys
+*.pem
+*.cer
+*.p12
+secret_*.py
